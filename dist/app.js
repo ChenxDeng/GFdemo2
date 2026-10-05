@@ -166,8 +166,7 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
 
 // Reference: workshop-preview/dist/motion.js. Animate inner spans so hit boxes
 // and document layout remain stable. Text selection always takes priority.
-{
- const title=document.querySelector('#hero-title');
+for(const title of document.querySelectorAll('#intro-title, #hero-title')){
  const items=[...title.querySelectorAll('.title-line')].map(target=>({target,surface:target.querySelector('.motion-surface')}));
  const motion=matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
  let frame=null,selecting=false;
@@ -227,7 +226,7 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
   let id;try{id=decodeURIComponent(hash.slice(1));}catch{return null;}
   const target=document.getElementById(id);
   if(!target)return null;
-  const heading=target.matches('.hero')?target.querySelector('h1'):target.matches('.section')?target.querySelector('.section-heading, .eyebrow, h2'):target;
+  const heading=target.matches('.hero')?target.querySelector('h1, h2'):target.matches('.section')?target.querySelector('.section-heading, .eyebrow, h2'):target;
   return {target,heading:heading||target};
  }
  function navigate(hash,{push=false,smooth=false,focus=false}={}){
@@ -309,4 +308,26 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
  document.addEventListener('visibilitychange',()=>{
   if(document.hidden)[...active.keys()].forEach(finish);
  });
+}
+
+// Native scrolling carries the opening upward into the existing full homepage.
+// No wheel interception: touch, keyboard, reverse scrolling and anchors still work.
+{
+ const opening=document.querySelector('#intro');
+ const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+ let frame=null;
+ function render(){
+  frame=null;
+  const rect=opening.getBoundingClientRect();
+  const headerBottom=document.querySelector('.site-header').getBoundingClientRect().bottom;
+  const progress=reduced.matches?0:Math.max(0,Math.min(1,(headerBottom-rect.top)/rect.height));
+  const eased=progress*progress*(3-2*progress);
+  opening.style.setProperty('--opening-opacity',String(1-eased));
+  opening.style.setProperty('--opening-shift',(-32*eased)+'px');
+ }
+ function schedule(){if(frame===null)frame=requestAnimationFrame(render);}
+ window.addEventListener('scroll',schedule,{passive:true});
+ window.addEventListener('resize',schedule,{passive:true});
+ reduced.addEventListener('change',schedule);
+ render();
 }
