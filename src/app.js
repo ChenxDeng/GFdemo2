@@ -166,7 +166,7 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
 
 // Reference: workshop-preview/dist/motion.js. Animate inner spans so hit boxes
 // and document layout remain stable. Text selection always takes priority.
-for(const title of document.querySelectorAll('#intro-title, #hero-title')){
+for(const title of document.querySelectorAll('#hero-title')){
  const items=[...title.querySelectorAll('.title-line')].map(target=>({target,surface:target.querySelector('.motion-surface')}));
  const motion=matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
  let frame=null,selecting=false;
@@ -226,13 +226,19 @@ for(const title of document.querySelectorAll('#intro-title, #hero-title')){
   let id;try{id=decodeURIComponent(hash.slice(1));}catch{return null;}
   const target=document.getElementById(id);
   if(!target)return null;
-  const heading=target.matches('.hero')?target.querySelector('h1, h2'):target.matches('.section')?target.querySelector('.section-heading, .eyebrow, h2'):target;
+  const heading=target.matches('.hero, .hero-stage')?target.querySelector('h1, h2'):target.matches('.section')?target.querySelector('.section-heading, .eyebrow, h2'):target;
   return {target,heading:heading||target};
  }
  function navigate(hash,{push=false,smooth=false,focus=false}={}){
   const resolved=resolve(hash);if(!resolved)return;
   updateHeader();
-  const absoluteTop=resolved.target.getBoundingClientRect().top+window.scrollY;
+  let absoluteTop=resolved.target.getBoundingClientRect().top+window.scrollY;
+  const stage=resolved.target.closest('.hero-stage');
+  if(stage&&stage!==resolved.target){
+   // Internal hero links address the revealed layout, beyond the opening motion.
+   absoluteTop=stage.getBoundingClientRect().top+window.scrollY+Number(stage.dataset.scrollDistance||0)
+    +resolved.target.getBoundingClientRect().top-stage.querySelector('.hero').getBoundingClientRect().top;
+  }
   const inset=header.getBoundingClientRect().bottom;
   const maxTop=Math.max(0,root.scrollHeight-window.innerHeight);
   const top=Math.max(0,Math.min(maxTop,absoluteTop-inset));
@@ -283,7 +289,7 @@ for(const title of document.querySelectorAll('#intro-title, #hero-title')){
  }
  const observer=new IntersectionObserver(entries=>{
   entries.forEach(entry=>{
-   if(!entry.isIntersecting)return;
+   if(!entry.isIntersecting||entry.target.closest('[inert]'))return;
    const number=entry.target;
    observer.unobserve(number);
    if(reduced.matches||document.hidden){finish(number);return;}
@@ -302,6 +308,9 @@ for(const title of document.querySelectorAll('#intro-title, #hero-title')){
   });
  },{threshold:.5});
  if(!reduced.matches)numbers.forEach(number=>observer.observe(number));
+ document.addEventListener('hero:revealed',()=>{
+  if(!reduced.matches)numbers.forEach(number=>{observer.unobserve(number);observer.observe(number);});
+ },{once:true});
  reduced.addEventListener('change',event=>{
   if(event.matches){observer.disconnect();numbers.forEach(finish);}
  });
@@ -310,24 +319,79 @@ for(const title of document.querySelectorAll('#intro-title, #hero-title')){
  });
 }
 
-// Native scrolling carries the opening upward into the existing full homepage.
-// No wheel interception: touch, keyboard, reverse scrolling and anchors still work.
+// Move the original text into place through a sticky scroll stage; never clone it.
 {
- const opening=document.querySelector('#intro');
+ const stage=document.querySelector('.hero-stage');
+ const hero=stage.querySelector('.hero');
+ const header=document.querySelector('.site-header');
+ const details=stage.querySelector('.entry-basics');
+ const caption=stage.querySelector('.field-caption');
+ const title=stage.querySelector('#hero-title');
+ const lines=[...title.querySelectorAll('.title-line')];
+ const intro=[...stage.querySelectorAll('.intro-line')];
+ const slogan=stage.querySelector('.hero-slogan');
+ const items=[...lines,...intro,slogan];
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- let frame=null;
+ let geometry=[],distance=0,start=0,frame=null,resizeFrame=null,announced=false;
+ const clamp=value=>Math.max(0,Math.min(1,value));
+ const ease=value=>value*value*(3-2*value);
+ function reveal(value){
+  stage.style.setProperty('--details-reveal',String(value));
+  const available=value>=.85;
+  details.inert=caption.inert=!available;
+  if(available&&!announced){announced=true;document.dispatchEvent(new Event('hero:revealed'));}
+ }
  function render(){
   frame=null;
-  const rect=opening.getBoundingClientRect();
-  const headerBottom=document.querySelector('.site-header').getBoundingClientRect().bottom;
-  const progress=reduced.matches?0:Math.max(0,Math.min(1,(headerBottom-rect.top)/rect.height));
-  const eased=progress*progress*(3-2*progress);
-  opening.style.setProperty('--opening-opacity',String(1-eased));
-  opening.style.setProperty('--opening-shift',(-32*eased)+'px');
+  if(reduced.matches){reveal(1);return;}
+  const progress=ease(clamp((window.scrollY-start)/distance));
+  geometry.forEach(({element,x,y,scale})=>{
+   const remainder=1-progress;
+   element.style.transform=`translate(${x*remainder}px,${y*remainder}px) scale(${1+(scale-1)*remainder})`;
+  });
+  reveal(ease(clamp((progress-.28)/.72)));
+ }
+ function measure(){
+  resizeFrame=null;
+  items.forEach(element=>element.style.removeProperty('transform'));
+  if(reduced.matches){
+   stage.classList.remove('is-staged');stage.style.removeProperty('--stage-height');
+   stage.dataset.scrollDistance='0';geometry=[];render();return;
+  }
+  stage.classList.add('is-staged');
+  const navHeight=header.getBoundingClientRect().height;
+  const viewport=Math.max(1,window.innerHeight-navHeight);
+  distance=Math.round(Math.max(420,viewport*.95));
+  start=stage.getBoundingClientRect().top+window.scrollY-navHeight;
+  stage.dataset.scrollDistance=String(distance);
+  stage.style.setProperty('--stage-height',(hero.offsetHeight+distance)+'px');
+  const heroBox=hero.getBoundingClientRect();
+  const availableWidth=window.innerWidth-Math.max(40,window.innerWidth*.084);
+  const titleScale=Math.max(1,Math.min(136,window.innerWidth*.084)/parseFloat(getComputedStyle(title).fontSize));
+  const textScale=Math.max(1,Math.min(24,window.innerWidth*.0155)/parseFloat(getComputedStyle(intro[0]).fontSize));
+  const sloganScale=Math.max(1,Math.min(40,window.innerWidth*.026)/parseFloat(getComputedStyle(slogan).fontSize));
+  const boxes=items.map(element=>element.getBoundingClientRect());
+  const scales=items.map((element,index)=>Math.min(index<lines.length?titleScale:index<items.length-1?textScale:sloganScale,availableWidth/boxes[index].width));
+  const gaps=items.map((element,index)=>index===lines.length-1?30:index===items.length-2?26:0);
+  const total=boxes.reduce((height,box,index)=>height+box.height*scales[index]+gaps[index],0);
+  const fit=Math.max(.1,Math.min(1,(viewport-48)/total));
+  let y=Math.max(24,(viewport-total*fit)/2);
+  geometry=items.map((element,index)=>{
+   const box=boxes[index],scale=scales[index]*fit;
+   const initialX=(window.innerWidth-box.width*scale)/2;
+   const result={element,x:initialX-box.left,y:y-(box.top-heroBox.top),scale};
+   y+=(box.height*scales[index]+gaps[index])*fit;
+   return result;
+  });
+  render();
  }
  function schedule(){if(frame===null)frame=requestAnimationFrame(render);}
+ function remeasure(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(measure);}
  window.addEventListener('scroll',schedule,{passive:true});
- window.addEventListener('resize',schedule,{passive:true});
- reduced.addEventListener('change',schedule);
- render();
+ window.addEventListener('resize',remeasure,{passive:true});
+ reduced.addEventListener('change',remeasure);
+ new ResizeObserver(remeasure).observe(hero);
+ new ResizeObserver(remeasure).observe(header);
+ if(document.fonts)document.fonts.ready.then(remeasure);
+ measure();
 }

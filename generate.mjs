@@ -21,22 +21,15 @@ const faqs=[
  ['Where are submissions uploaded?','The event submission interface is not yet released. The public repository supports local task runs. The participant guide labels the proposed competition package separately.']
 ];
 const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Build an agent harness around Hunyuan 4 Preview for verified quantum engineering. QIQC Challenge by GaugeForge starts ${facts.schedule.start.label}."><meta name="theme-color" content="#f5f7f8"><title>QIQC Challenge | GaugeForge</title><link rel="stylesheet" href="styles.css"></head><body>
-<a class="skip" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="#intro">GaugeForge<span aria-hidden="true">▍</span></a><button id="menu-toggle" aria-expanded="false" aria-controls="navigation" aria-label="Open navigation" title="Open navigation"><img src="assets/menu.svg" alt=""></button><nav id="navigation" aria-label="Main navigation">${navItems.map(([id,label])=>`<a href="#${id}">${label}</a>`).join('')}</nav></header>
+<a class="skip" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="#overview">GaugeForge<span aria-hidden="true">▍</span></a><button id="menu-toggle" aria-expanded="false" aria-controls="navigation" aria-label="Open navigation" title="Open navigation"><img src="assets/menu.svg" alt=""></button><nav id="navigation" aria-label="Main navigation">${navItems.map(([id,label])=>`<a href="#${id}">${label}</a>`).join('')}</nav></header>
 <main id="main">
-<section class="opening" id="intro" aria-labelledby="intro-title">
-<div class="opening-copy">
-<h1 id="intro-title"><span class="title-line"><span class="motion-surface">Agentic Quantum</span></span><br><span class="title-line"><span class="motion-surface"><em>Coding Challenge</em></span></span></h1>
-<p class="event-intro">An online challenge to build AI agents for quantum engineering.<br>Design your harness around Hunyuan 4 Preview and put it to the test.</p>
-<p class="hero-slogan"><mark>${facts.messaging.hook}</mark></p>
-</div>
-</section>
-<section class="hero" id="overview" aria-labelledby="hero-title">
+<section class="hero-stage" id="overview" aria-labelledby="hero-title"><div class="hero">
 <div class="hero-field" id="rabi-lab" aria-hidden="true"><img class="field-fallback" src="assets/rabi-calibration.webp" alt=""><canvas id="rabi-canvas"></canvas></div>
 <div class="field-caption protected" id="rabi-caption"><p>RABI OSCILLATIONS</p><span>Pulse duration × detuning · ideal two-level model</span><div><span>Illustration, not experimental data</span><button id="rabi-play" type="button" aria-label="Pause background animation">Ⅱ &nbsp; Pause motion</button></div></div>
 <div class="hero-inner wrap">
 <div class="hero-copy">
-<h2 id="hero-title" class="protected"><span class="title-line"><span class="motion-surface">Agentic Quantum</span></span><br><span class="title-line"><span class="motion-surface"><em>Coding Challenge</em></span></span></h2>
-<p class="event-intro protected">An online challenge to build AI agents for quantum engineering.<br>Design your harness around Hunyuan 4 Preview and put it to the test.</p>
+<h1 id="hero-title" class="protected"><span class="title-line"><span class="motion-surface">Agentic Quantum</span></span><br><span class="title-line"><span class="motion-surface"><em>Coding Challenge</em></span></span></h1>
+<p class="event-intro protected"><span class="intro-line">An online challenge to build AI agents for quantum engineering.</span><span class="intro-line">Design your harness around Hunyuan 4 Preview and put it to the test.</span></p>
 <p class="hero-slogan protected"><mark>${facts.messaging.hook}</mark></p>
 </div>
 <section class="entry-basics" aria-label="Participation essentials">
@@ -45,7 +38,7 @@ const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta nam
 <div class="prize-overview"><article><span class="rule-label">PLACEMENT PRIZE POOL</span><h3 aria-label="USD ${money(facts.prizes.placesTotal)}"><span aria-hidden="true">USD <span class="prize-number" data-amount="${facts.prizes.placesTotal}" style="--number-width:${money(facts.prizes.placesTotal).length}ch">${money(facts.prizes.placesTotal)}</span></span></h3><p>Total across the five placement awards.</p><div class="place-amounts">${facts.prizes.places.map((v,i)=>`<span><small>#${i+1}</small> $${money(v)}</span>`).join('')}</div></article><article class="challenger-prize"><span class="rule-label">THE CHALLENGER AWARD</span><h3 aria-label="USD ${money(facts.prizes.challengerAmount)}"><span aria-hidden="true">USD <span class="prize-number" data-amount="${facts.prizes.challengerAmount}" style="--number-width:${money(facts.prizes.challengerAmount).length}ch">${money(facts.prizes.challengerAmount)}</span></span></h3><p>Only the <strong>strict first team</strong> to exceed GPT-6 Astra on the hidden leaderboard. If nobody exceeds it, the award is not paid.</p></article></div>
 </section>
 </div>
-</section>
+</div></section>
 <section class="section rules-section" id="rules" aria-labelledby="rules-title"><div class="wrap">
 <div class="section-heading heading-split"><div><p class="eyebrow">01 / THE RULES</p><h2 id="rules-title">One model. Your engineering.</h2></div><a class="text-link" href="downloads/participant-guide.html">Participant guide ${arrow}</a></div>
 <div class="rules-layout"><div class="rule-facts">
@@ -77,7 +70,7 @@ const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta nam
 <section class="section wrap" id="faq"><div class="section-heading"><p class="eyebrow">06 / FAQ</p><h2>Before you enter.</h2></div><div class="faq">${faqs.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</div></section>
 <section class="participate-band"><div class="wrap"><p class="eyebrow">BUILD SOMETHING VERIFIABLE</p><h2>Join the QIQC Challenge.</h2><p>Starts ${facts.schedule.start.label}. Final submission: ${facts.schedule.deadline.label}. Demo Day: ${facts.schedule.demo.label}. Registration link: To be announced.</p><a class="button primary" href="${email('QIQC Challenge participation inquiry')}">Contact to participate ${arrow}</a><a class="contact" href="mailto:${facts.contact}">${facts.contact}</a><p class="small">Email inquiry only. Your mail application opens; nothing is sent automatically.</p></div></section></main>
 ${facts.links.registration?'':`<dialog id="registration-dialog" aria-labelledby="registration-title" aria-describedby="registration-description"><button type="button" class="dialog-close" aria-label="Close registration information">×</button><p class="eyebrow">QIQC CHALLENGE / REGISTRATION</p><h2 id="registration-title">Join the challenge.</h2><p id="registration-description">The official registration form is coming soon. Contact GaugeForge for participation information in the meantime.</p><a class="button primary" href="${email('QIQC Challenge registration inquiry')}">Contact the organizer ${arrow}</a><p class="dialog-note">An email inquiry does not register a team. Nothing is submitted automatically.</p></dialog>`}
-<footer class="site-footer wrap"><a class="brand" href="#intro">GaugeForge<span aria-hidden="true">▍</span></a><p>QIQC Challenge / ${facts.version}</p><p>No registration data is collected on this site. Inquiries are handled by GaugeForge.<br>Data rights and the final participant privacy notice will be available before registration.</p><a href="downloads/participant-guide.html">Privacy and participant terms</a></footer><script src="app.js" defer></script></body></html>`;
+<footer class="site-footer wrap"><a class="brand" href="#overview">GaugeForge<span aria-hidden="true">▍</span></a><p>QIQC Challenge / ${facts.version}</p><p>No registration data is collected on this site. Inquiries are handled by GaugeForge.<br>Data rights and the final participant privacy notice will be available before registration.</p><a href="downloads/participant-guide.html">Privacy and participant terms</a></footer><script src="app.js" defer></script></body></html>`;
 await fs.writeFile(path.join(root,'src/index.html'),html);
 await fs.writeFile(path.join(root,'src/404.html'),'<!doctype html><html lang="en"><meta charset="utf-8"><title>Page not found | QIQC</title><h1>Page not found</h1><a href="/">Return to QIQC Challenge</a></html>');
 await fs.writeFile(path.join(root,'src/_headers'),'/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: DENY\n  Content-Security-Policy: default-src \'self\'; img-src \'self\' data:; style-src \'self\' \'unsafe-inline\'; script-src \'self\'; object-src \'none\'; base-uri \'self\'; form-action \'none\'\n');
