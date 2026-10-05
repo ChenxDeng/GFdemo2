@@ -1,0 +1,110 @@
+{
+  "version": "2026-10-04.1",
+  "updated": "2026-10-04",
+  "name": "Agentic Quantum Coding Challenge",
+  "shortName": "QIQC Challenge",
+  "organizer": "GaugeForge",
+  "messaging": {
+    "hook": "Can your harness beat GPT-6 Astra?",
+    "support": "Build a Hunyuan 4 Preview agent for quantum engineering.",
+    "awardHook": "$15,000 for the first breakthrough.",
+    "cta": "Take the challenge."
+  },
+  "contact": "shenhao.miao@gauge-forge.com",
+  "links": {
+    "benchmark": "https://gauge-forge.com/qiqc",
+    "repository": "https://github.com/GaugeForge/Quantum-Harbor",
+    "paper": "https://arxiv.org/abs/2609.17439",
+    "registration": null,
+    "website": "https://challenge.r-era.ai",
+    "qr": "https://gauge-forge.com/qiqc",
+    "qrPurpose": "Benchmark information, not registration"
+  },
+  "schedule": {
+    "timezone": "UTC+8",
+    "start": {
+      "date": "2026-11-08",
+      "label": "8 November 2026",
+      "status": "founder-confirmed",
+      "time": null
+    },
+    "earlyPr": {
+      "date": "2026-10-10",
+      "status": "planned"
+    },
+    "launch": {
+      "date": "2026-10-21",
+      "status": "planned"
+    },
+    "registration": {
+      "label": "To be announced",
+      "status": "pending"
+    },
+    "deadline": {
+      "date": "2026-11-10",
+      "label": "10 November 2026",
+      "status": "founder-confirmed",
+      "time": null
+    },
+    "demo": {
+      "date": "2026-11-12",
+      "label": "12 November 2026",
+      "status": "founder-confirmed",
+      "time": null
+    }
+  },
+  "model": {
+    "label": "Hunyuan 4 Preview",
+    "alias": "HY4",
+    "apiId": null,
+    "snapshot": null,
+    "providerCandidate": "Tencent",
+    "providerStatus": "prospective, not confirmed",
+    "publicStatus": "Tencent provider candidate; exact API ID, frozen snapshot and development allowance: To be announced",
+    "evidence": "The paper labels the evaluated Tencent system Hunyuan T4*. The event uses the founder-confirmed public label Hunyuan 4 Preview; the exact callable endpoint still needs provider confirmation."
+  },
+  "rules": {
+    "teamMin": 1,
+    "teamMax": 3,
+    "eligibility": "Open to everyone; no academic or professional eligibility restriction",
+    "maxFullEvaluations": 3,
+    "finalists": 5,
+    "license": "AGPL",
+    "licenseVersion": "AGPL; exact version to be frozen before registration",
+    "dataRights": "Organizer and participating partner organizations may use submitted data and execution trajectories; scope, recipients and publication terms are not yet specified",
+    "entryFee": "Free entry (existing partner brief)",
+    "publicTasks": 5,
+    "eventTaskCount": 49,
+    "status": "Confirmed core conditions; detailed competition protocol proposed pending rule freeze"
+  },
+  "prizes": {
+    "currency": "USD",
+    "places": [
+      1500,
+      700,
+      700,
+      500,
+      500
+    ],
+    "placesTotal": 3900,
+    "challengerAmount": 15000,
+    "challengerBasis": "First team to strictly exceed the frozen GPT-6 Astra baseline on the hidden leaderboard using HY4",
+    "challengerDistribution": "One award to the first qualifying team only",
+    "challengerStacking": "To be announced",
+    "status": "Amounts and first-qualifying-team-only allocation confirmed by founder; exact first-place clock, baseline, stacking and payment terms pending"
+  },
+  "partners": {
+    "confirmed": [],
+    "prospective": [
+      "Tencent",
+      "QCoder"
+    ],
+    "publicLabel": "Partners to be announced"
+  },
+  "technical": {
+    "repoCommit": "1f03d78e959cf02469568250f61f9af88a53146f",
+    "harbor": "0.18.0",
+    "python": ">=3.11",
+    "submissionApiStatus": "Proposed specification; no event upload service verified"
+  }
+}
