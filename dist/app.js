@@ -66,7 +66,8 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
  }
  function schedule(){if(frame!==null||!visible||document.hidden)return;last=null;frame=requestAnimationFrame(tick);}
  function resize(){
-  const box=field.getBoundingClientRect();width=Math.min(1200,Math.max(400,Math.round(box.width)));height=Math.max(200,Math.round(width*box.height/box.width));
+  // Use layout size: scroll scaling must not reallocate or resample the simulation.
+  const box={width:field.offsetWidth,height:field.offsetHeight};width=Math.min(1200,Math.max(400,Math.round(box.width)));height=Math.max(200,Math.round(width*box.height/box.width));
   canvas.width=source.width=reveal.width=width;canvas.height=source.height=reveal.height=height;
   pixels=sourceCtx.createImageData(width,height);dirty=true;drawField();composite();schedule();
  }
@@ -91,77 +92,70 @@ document.querySelector('#copy-code').addEventListener('click',async()=>{
  resize();new ResizeObserver(resize).observe(field);syncPlay();
 }
 
-// Educational examples never submit data or consume real evaluation quota.
+// Brief exit/entry transitions keep example changes legible; rapid choices use the latest request.
+const contentMotion=matchMedia('(prefers-reduced-motion: reduce)');
+const contentTransitions=new Map();
+async function transitionContent(key,elements,update){
+ const opacity=elements.map(element=>getComputedStyle(element).opacity);
+ const previous=contentTransitions.get(key);
+ if(previous)previous.animations.forEach(animation=>animation.cancel());
+ const job={animations:[],committed:false,update};
+ contentTransitions.set(key,job);
+ if(contentMotion.matches||elements.some(element=>!element.animate)){
+  update();contentTransitions.delete(key);return;
+ }
+ job.animations=elements.map((element,index)=>element.animate([
+  {opacity:opacity[index],transform:'translateY(0)'},{opacity:0,transform:'translateY(-4px)'}
+ ],{duration:110,easing:'ease-out',fill:'forwards'}));
+ await Promise.all(job.animations.map(animation=>animation.finished.catch(()=>{})));
+ if(contentTransitions.get(key)!==job)return;
+ job.animations.forEach(animation=>animation.cancel());
+ const incoming=update()||elements;job.committed=true;
+ job.animations=incoming.map((element,index)=>element.animate([
+  {opacity:0,transform:'translateY(9px)'},{opacity:1,transform:'translateY(0)'}
+ ],{duration:380,delay:index*35,easing:'cubic-bezier(.22,1,.36,1)',fill:'both'}));
+ await Promise.all(job.animations.map(animation=>animation.finished.catch(()=>{})));
+ if(contentTransitions.get(key)===job){job.animations.forEach(animation=>animation.cancel());contentTransitions.delete(key);}
+}
+contentMotion.addEventListener('change',event=>{
+ if(!event.matches)return;
+ for(const job of contentTransitions.values()){
+  job.animations.forEach(animation=>animation.cancel());if(!job.committed)job.update();
+ }
+ contentTransitions.clear();
+});
+
+// Task stages are directly selectable; they do not simulate evaluation attempts.
 {
- const demo=document.querySelector('.evaluation-demo');
- const next=document.querySelector('#demo-next'),reset=document.querySelector('#demo-reset');
- const status=document.querySelector('#evaluation-result');
- const slots=[...demo.querySelectorAll('.attempts>span')];
- const stations=[...demo.querySelectorAll('[data-station]')],panels=[...demo.querySelectorAll('[data-scene]')];
- const explanation=demo.querySelector('.eval-explanation');
- const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- const lessons=[
-  ['01 / THE HARNESS','Your code runs around HY4.','The team submits an AGPL open-source harness: the code that plans experiments, calls tools and checks results. Official model inference uses Tencent Hunyuan 4 Preview (HY4).','Teams improve the harness around a common model.'],
-  ['02 / ALL 49 TASKS','Five public. Forty-four hidden.','A full official evaluation includes both groups. The five public tasks are available for practice; the 44 hidden tasks are withheld during evaluation. This diagram groups the tasks; it does not prescribe their execution order.','5 + 44 = 49 tasks in ONE evaluation.'],
-  ['03 / THE EVIDENCE','Show what the agent actually did.','Evaluation checks the task result against recorded or replayed evidence. This scene illustrates the process only: it does not reveal hidden task details or produce a real leaderboard score.','A claimed result needs verifiable evidence.'],
-  ['04 / THE ALLOWANCE','One full run uses one attempt.','The example has completed a full 49-task evaluation. The counter below now increases by one. Each team can have at most three official full evaluations.','Local practice and a full official evaluation are different.']
+ const tabs=[...document.querySelectorAll('[data-task-step]')];
+ const panel=document.querySelector('#task-panel');
+ const stages=[
+  ['Understand the objective.','Read the task instructions and device specifications. Identify the quantity to estimate or the operation to calibrate, the available tools and the limits on experiments.',['Task brief','Tools & limits','Success criteria'],'Start with a clear target and an experiment budget.'],
+  ['Plan useful experiments.','Your harness uses HY4 to choose which measurements to request and how to allocate the available budget. Plan for evidence that can distinguish competing explanations or improve a calibration.',['Current knowledge','Experiment plan','Budget allocation'],'Make each experiment serve the task objective.'],
+  ['Run, inspect and adapt.','Call the approved laboratory tools, retrieve their results and use the evidence to decide what to try next. Adapt the strategy within the task limits instead of treating the first result as a final answer.',['Tool calls','Measurements','Updated strategy'],'Turn experimental evidence into the next decision.'],
+  ['Submit a verifiable answer.','Return the task-specific answer in the required format, including uncertainty where requested. A separate verifier checks the outcome against recorded evidence. This task answer is distinct from submitting your harness to the competition.',['Final answer','Recorded evidence','Verifier checks'],'Success is a result the verifier can check.']
  ];
- let attempts=0,step=0;
- function render(animate=false){
-  demo.dataset.stage=String(step);demo.style.setProperty('--eval-progress',String(Math.max(0,step)/3));
-  stations.forEach((station,i)=>{station.classList.toggle('active',i===step);station.classList.toggle('complete',i<step);});
-  panels.forEach(panel=>{panel.hidden=panel.dataset.scene!==(step<0?'idle':String(step));});
-  slots.forEach((slot,i)=>slot.classList.toggle('used',i<attempts));
-  document.querySelector('#attempt-count').textContent=attempts+' / 3 used';
-  document.querySelector('#scene-attempt').textContent=attempts+' of 3 attempts used';
-  const lesson=step<0?['BEFORE YOU START','Follow a complete run.','This is a visual explanation of the competition rules. Nothing is submitted, no model is called, and your real evaluation allowance is unaffected.','One full evaluation covers all 49 tasks. It is one attempt, not 49 attempts.']:lessons[step];
-  ['eval-step-label','eval-step-title','eval-step-copy','eval-step-takeaway'].forEach((id,i)=>document.getElementById(id).textContent=lesson[i]);
-  next.disabled=attempts>=3;
-  next.textContent=attempts>=3?'Limit reached':step===3?'Next evaluation →':'Next step →';
-  status.textContent=attempts===3?'All 3 example attempts used. Reset to replay.':step===3?'One complete 49-task evaluation counted. '+(3-attempts)+' remain in this example.':'Click Next step. This is an explainer, not a live evaluation.';
-  if(animate&&!reduced.matches){
-   const panel=panels.find(item=>!item.hidden);
-   for(const element of [panel,explanation]){
-    element.getAnimations().forEach(animation=>animation.cancel());
-    element.animate([{opacity:.25,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:420,easing:'cubic-bezier(.22,1,.36,1)'});
-   }
-  }
+ let selected=0;
+ function select(index,focus=false){
+  if(focus)tabs[index].focus();
+  if(selected===index)return;selected=index;
+  tabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});
+  transitionContent(panel,[panel],()=>{
+   const [title,copy,nodes,outcome]=stages[index];
+   panel.setAttribute('aria-labelledby',tabs[index].id);
+   document.querySelector('#task-stage-title').textContent=title;
+   document.querySelector('#task-stage-copy').textContent=copy;
+   nodes.forEach((text,i)=>document.getElementById('task-node-'+['a','b','c'][i]).textContent=text);
+   document.querySelector('#task-stage-outcome').textContent=outcome;
+  });
  }
- function advance(){
-  if(attempts>=3)return;
-  step=step===3?0:step+1;
-  if(step===3)attempts++;
-  render(true);
- }
- next.addEventListener('click',()=>{if(!next.disabled)advance();});
- reset.addEventListener('click',()=>{attempts=0;step=0;render(true);});
- render();
- const scenarios={
-  first:['One qualifying team. USD 15,000.','The first qualifying team whose hidden score is strictly above the frozen GPT-6 Astra baseline receives the challenger award.'],
-  tie:['Equal is not above.','Matching the GPT-6 Astra hidden baseline does not qualify. The team must strictly exceed it.'],
-  later:['A breakthrough, but not the first.','If another qualifying team has already exceeded the baseline first, this team does not receive the challenger award. Placement prizes are separate; stacking terms are pending.'],
-  none:['No qualifying team. No challenger payout.','If no team strictly exceeds the GPT-6 Astra hidden baseline, the USD 15,000 challenger award is not paid.']
- };
- const scenarioButtons=[...document.querySelectorAll('[data-scenario]')];
- scenarioButtons.forEach(button=>button.addEventListener('click',()=>{
-  scenarioButtons.forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
-  const [title,copy]=scenarios[button.dataset.scenario];const result=document.querySelector('#award-result');
-  result.querySelector('strong').textContent=title;result.querySelector('p').textContent=copy;
- }));
- const steps=[
-  ['BEFORE THE COMPETITION','Build the decision-making around HY4.','A sample team writes a harness that chooses a quantum experiment, calls the lab tools, reads the result and decides what to do next. The model stays fixed; the orchestration is theirs.','YOUR HARNESS',['Plan','Use tools','Verify'],'↳  Learn from the evidence. Try again.','Illustrative workflow · no model call or experiment is running here.'],
-  ['PREPARATION','Learn on the five public tasks.','The team tests locally in Quantum-Harbor, inspects its execution traces and improves the harness. Local practice is distinct from an official full evaluation. Exact development quotas remain to be announced.','PUBLIC PRACTICE',['5 tasks','Run locally','Inspect traces'],'↳  Improve the harness using public evidence.','Illustrative workflow · hidden tasks are not exposed in this demo.'],
-  ['08–10 NOVEMBER 2026','Use each official evaluation deliberately.','From the November 8 start to the November 10 deadline, each team has at most three official full evaluations across all 49 tasks: five public and 44 hidden. The exact submission interface and daily times are to be announced.','OFFICIAL EVALUATION',['Harness','49 tasks','Evidence'],'↳  At most three full evaluations per team.','Illustrative workflow · this demo does not run a benchmark or produce a score.'],
-  ['12 NOVEMBER 2026','Show what worked. Explain what did not.','Demo Day is November 12. Prepare a clear account of your approach and evidence. The current proposed review format asks finalists to explain a success and a failure; final judging details will be published in the rules.','DEMO DAY',['Approach','Evidence','Discussion'],'↳  A result that other people can inspect.','Demo Day date is confirmed; the detailed review format remains proposed.']
- ];
- const stepButtons=[...document.querySelectorAll('[data-step]')];
- stepButtons.forEach(button=>button.addEventListener('click',()=>{
-  stepButtons.forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
-  const [date,title,copy,label,nodes,loop,note]=steps[Number(button.dataset.step)];
-  for(const [id,text] of [['flow-date',date],['flow-title',title],['flow-copy',copy],['flow-diagram-label',label],['flow-note',note]])document.getElementById(id).textContent=text;
-  nodes.forEach((text,i)=>document.getElementById('flow-node-'+['a','b','c'][i]).textContent=text);
-  document.querySelector('.flow-loop').textContent=loop;
- }));
+ tabs.forEach((tab,index)=>{
+  tab.addEventListener('click',()=>select(index));
+  tab.addEventListener('keydown',event=>{
+   const next=event.key==='ArrowRight'?(index+1)%tabs.length:event.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:null;
+   if(next===null)return;event.preventDefault();select(next,true);
+  });
+ });
 }
 
 // Reference: workshop-preview/dist/motion.js. Animate inner spans so hit boxes
@@ -207,8 +201,21 @@ for(const title of document.querySelectorAll('#hero-title')){
  const trigger=document.querySelector('#register-now');
  const dialog=document.querySelector('#registration-dialog');
  if(trigger&&dialog){
-  trigger.addEventListener('click',()=>dialog.showModal());
-  dialog.querySelector('.dialog-close').addEventListener('click',()=>dialog.close());
+  let closing=false;
+  trigger.addEventListener('click',()=>{
+   dialog.showModal();
+   if(!contentMotion.matches)dialog.animate([{opacity:0,transform:'translateY(14px) scale(.98)'},{opacity:1,transform:'translateY(0) scale(1)'}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});
+  });
+  async function closeDialog(){
+   if(closing)return;closing=true;
+   if(!contentMotion.matches){
+    dialog.getAnimations().forEach(animation=>animation.cancel());
+    await dialog.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(8px)'}],{duration:150,easing:'ease-in'}).finished.catch(()=>{});
+   }
+   dialog.close();closing=false;
+  }
+  dialog.querySelector('.dialog-close').addEventListener('click',closeDialog);
+  dialog.addEventListener('cancel',event=>{event.preventDefault();closeDialog();});
   dialog.addEventListener('close',()=>trigger.focus());
  }
 }
@@ -224,6 +231,7 @@ for(const title of document.querySelectorAll('#hero-title')){
  function resolve(hash){
   if(!hash||hash==='#')return null;
   let id;try{id=decodeURIComponent(hash.slice(1));}catch{return null;}
+  id=({'rules':'task','how-it-works':'evaluation'})[id]||id;
   const target=document.getElementById(id);
   if(!target)return null;
   const heading=target.matches('.hero, .hero-stage')?target.querySelector('h1, h2'):target.matches('.section')?target.querySelector('.section-heading, .eyebrow, h2'):target;
@@ -276,53 +284,73 @@ for(const title of document.querySelectorAll('#hero-title')){
  });
 }
 
-// Count each homepage prize up once when it first enters view.
+// Count only after the overview transition finishes and the amount is actually visible.
 {
  const numbers=[...document.querySelectorAll('.prize-number[data-amount]')];
+ const stage=document.querySelector('.hero-stage');
+ const header=document.querySelector('.site-header');
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- const active=new Map();
  const formatter=new Intl.NumberFormat('en-US');
- function finish(number){
-  if(active.has(number))cancelAnimationFrame(active.get(number));
-  active.delete(number);
-  number.textContent=formatter.format(Number(number.dataset.amount));
+ const states=new Map(numbers.map(number=>[number,{elapsed:0,last:null,frame:null,done:false}]));
+ let checkFrame=null;
+ function pause(state){
+  if(state.frame!==null)cancelAnimationFrame(state.frame);
+  state.frame=null;state.last=null;
  }
- const observer=new IntersectionObserver(entries=>{
-  entries.forEach(entry=>{
-   if(!entry.isIntersecting||entry.target.closest('[inert]'))return;
-   const number=entry.target;
-   observer.unobserve(number);
-   if(reduced.matches||document.hidden){finish(number);return;}
-   const amount=Number(number.dataset.amount),duration=1700;
-   let start=null;
-   number.textContent='0';
-   function tick(now){
-    if(start===null)start=now;
-    const progress=Math.min(1,(now-start)/duration);
-    const eased=1-Math.pow(1-progress,3);
-    number.textContent=formatter.format(Math.round(amount*eased));
-    if(progress<1)active.set(number,requestAnimationFrame(tick));
-    else finish(number);
-   }
-   active.set(number,requestAnimationFrame(tick));
-  });
- },{threshold:.5});
- if(!reduced.matches)numbers.forEach(number=>observer.observe(number));
- document.addEventListener('hero:revealed',()=>{
-  if(!reduced.matches)numbers.forEach(number=>{observer.unobserve(number);observer.observe(number);});
- },{once:true});
- reduced.addEventListener('change',event=>{
-  if(event.matches){observer.disconnect();numbers.forEach(finish);}
+ function finish(number,state){
+  pause(state);state.done=true;
+  number.textContent=formatter.format(Number(number.dataset.amount));
+  observer.unobserve(number);
+ }
+ function isVisible(number){
+  if(document.hidden||stage.dataset.overviewReady!=='true'||number.closest('[inert]'))return false;
+  const box=number.getBoundingClientRect();
+  const top=header.getBoundingClientRect().bottom;
+  const visibleHeight=Math.max(0,Math.min(box.bottom,window.innerHeight)-Math.max(box.top,top));
+  return box.width>0&&box.height>0&&visibleHeight/box.height>=.75;
+ }
+ function tick(number,state,now){
+  state.frame=null;
+  if(!isVisible(number)){state.last=null;return;}
+  if(state.last!==null)state.elapsed+=Math.max(0,now-state.last);
+  state.last=now;
+  const progress=Math.min(1,state.elapsed/1700);
+  number.textContent=formatter.format(Math.round(Number(number.dataset.amount)*(1-Math.pow(1-progress,3))));
+  if(progress===1)finish(number,state);
+  else state.frame=requestAnimationFrame(time=>tick(number,state,time));
+ }
+ function check(){
+  checkFrame=null;
+  for(const [number,state] of states){
+   if(state.done)continue;
+   if(reduced.matches){finish(number,state);continue;}
+   if(!isVisible(number)){pause(state);continue;}
+   if(state.frame===null)state.frame=requestAnimationFrame(time=>tick(number,state,time));
+  }
+ }
+ function schedule(){if(checkFrame===null)checkFrame=requestAnimationFrame(check);}
+ const observer=new IntersectionObserver(schedule,{threshold:[0,.75,1]});
+ numbers.forEach(number=>{
+  if(reduced.matches)finish(number,states.get(number));
+  else{number.textContent='0';observer.observe(number);}
  });
+ document.addEventListener('hero:overviewchange',schedule);
+ window.addEventListener('scroll',schedule,{passive:true});
+ window.addEventListener('resize',schedule,{passive:true});
+ window.addEventListener('pageshow',schedule);
+ reduced.addEventListener('change',schedule);
  document.addEventListener('visibilitychange',()=>{
-  if(document.hidden)[...active.keys()].forEach(finish);
+  if(document.hidden)states.forEach(pause);
+  else schedule();
  });
+ schedule();
 }
 
 // Move the original text into place through a sticky scroll stage; never clone it.
 {
  const stage=document.querySelector('.hero-stage');
  const hero=stage.querySelector('.hero');
+ const field=stage.querySelector('.hero-field');
  const header=document.querySelector('.site-header');
  const details=stage.querySelector('.entry-basics');
  const caption=stage.querySelector('.field-caption');
@@ -333,6 +361,7 @@ for(const title of document.querySelectorAll('#hero-title')){
  const items=[...lines,...intro,slogan];
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
  let geometry=[],distance=0,start=0,frame=null,resizeFrame=null,announced=false;
+ let fieldScaleX=1,fieldScaleY=1;
  const clamp=value=>Math.max(0,Math.min(1,value));
  const ease=value=>value*value*(3-2*value);
  function reveal(value){
@@ -341,26 +370,43 @@ for(const title of document.querySelectorAll('#hero-title')){
   details.inert=caption.inert=!available;
   if(available&&!announced){announced=true;document.dispatchEvent(new Event('hero:revealed'));}
  }
+ function setOverviewReady(ready){
+  if(stage.dataset.overviewReady===String(ready))return;
+  stage.dataset.overviewReady=String(ready);
+  document.dispatchEvent(new Event('hero:overviewchange'));
+ }
  function render(){
   frame=null;
-  if(reduced.matches){reveal(1);return;}
-  const progress=ease(clamp((window.scrollY-start)/distance));
+  if(reduced.matches){reveal(1);setOverviewReady(true);return;}
+  const scrollProgress=clamp((window.scrollY-start)/distance);
+  const progress=ease(scrollProgress);
+  stage.style.setProperty('--field-scale-x',String(1+(fieldScaleX-1)*(1-progress)));
+  stage.style.setProperty('--field-scale-y',String(1+(fieldScaleY-1)*(1-progress)));
+  stage.style.setProperty('--field-mask-x',(50+25*progress)+'%');
+  stage.style.setProperty('--field-mask-y',(42-20*progress)+'%');
+  stage.style.setProperty('--wash-x',(50-26*progress)+'%');
+  stage.style.setProperty('--wash-y',(42-17*progress)+'%');
   geometry.forEach(({element,x,y,scale})=>{
    const remainder=1-progress;
    element.style.transform=`translate(${x*remainder}px,${y*remainder}px) scale(${1+(scale-1)*remainder})`;
   });
   reveal(ease(clamp((progress-.28)/.72)));
+  setOverviewReady(scrollProgress>=1);
  }
  function measure(){
   resizeFrame=null;
   items.forEach(element=>element.style.removeProperty('transform'));
   if(reduced.matches){
    stage.classList.remove('is-staged');stage.style.removeProperty('--stage-height');
-   stage.dataset.scrollDistance='0';geometry=[];render();return;
+   stage.dataset.scrollDistance='0';geometry=[];
+   ['--field-scale-x','--field-scale-y','--field-mask-x','--field-mask-y','--wash-x','--wash-y'].forEach(name=>stage.style.removeProperty(name));
+   render();return;
   }
   stage.classList.add('is-staged');
   const navHeight=header.getBoundingClientRect().height;
   const viewport=Math.max(1,window.innerHeight-navHeight);
+  fieldScaleX=hero.clientWidth/Math.max(1,field.offsetWidth);
+  fieldScaleY=viewport/Math.max(1,field.offsetHeight);
   distance=Math.round(Math.max(420,viewport*.95));
   start=stage.getBoundingClientRect().top+window.scrollY-navHeight;
   stage.dataset.scrollDistance=String(distance);
@@ -394,4 +440,129 @@ for(const title of document.querySelectorAll('#hero-title')){
  new ResizeObserver(remeasure).observe(header);
  if(document.fonts)document.fonts.ready.then(remeasure);
  measure();
+}
+
+// Reference GFdemo1: optical movement on inner surfaces keeps hit areas and scroll geometry stable.
+{
+ const motion=matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
+ const selector='.hero-slogan mark, .basic-label, .timeline-event, .entry-timeline time, .entry-details h3, .prize-overview h3, .task-copy h3, .evaluation-columns h3, .section-heading h2';
+ const items=[...document.querySelectorAll(selector)].map(target=>{
+  const surface=document.createElement('span');surface.className='ui-motion-surface';
+  while(target.firstChild)surface.append(target.firstChild);
+  target.append(surface);target.classList.add('ui-motion-target');return {target,surface};
+ });
+ let frame=null,selecting=false;
+ const pending=new Map();
+ function resetItem(item){pending.delete(item);item.target.classList.remove('is-tracking');item.surface.style.removeProperty('--ui-x');item.surface.style.removeProperty('--ui-y');}
+ function reset(){if(frame!==null)cancelAnimationFrame(frame);frame=null;items.forEach(resetItem);}
+ function render(){
+  frame=null;if(!motion.matches||selecting)return;
+  for(const [item,point] of pending){
+   const box=item.target.getBoundingClientRect();
+   const x=Math.max(-1,Math.min(1,(point.x-box.left)/box.width*2-1));
+   const y=Math.max(-1,Math.min(1,(point.y-box.top)/box.height*2-1));
+   item.surface.style.setProperty('--ui-x',(x*4)+'px');item.surface.style.setProperty('--ui-y',(y*2.4)+'px');
+   item.target.classList.add('is-tracking');
+  }
+  pending.clear();
+ }
+ items.forEach(item=>{
+  item.target.addEventListener('pointermove',event=>{
+   if(!motion.matches||selecting||event.buttons||event.pointerType==='touch')return;
+   pending.set(item,{x:event.clientX,y:event.clientY});if(frame===null)frame=requestAnimationFrame(render);
+  });
+  item.target.addEventListener('pointerleave',()=>resetItem(item));
+  item.target.addEventListener('pointercancel',()=>resetItem(item));
+ });
+ document.addEventListener('pointerdown',()=>{selecting=true;reset();});
+ window.addEventListener('pointerup',()=>{selecting=false;});
+ window.addEventListener('pointercancel',()=>{selecting=false;reset();});
+ window.addEventListener('scroll',reset,{passive:true});
+ window.addEventListener('blur',()=>{selecting=false;reset();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){selecting=false;reset();}});
+ motion.addEventListener('change',reset);
+}
+
+// Native details remain keyboard-accessible while their answers expand and close gently.
+document.querySelectorAll('.faq details').forEach(details=>{
+ const summary=details.querySelector('summary');
+ let animation=null,expanded=details.open;
+ summary.addEventListener('click',event=>{
+  if(contentMotion.matches){expanded=!details.open;return;}
+  event.preventDefault();
+  const from=details.getBoundingClientRect().height;
+  if(animation)animation.cancel();
+  expanded=!expanded;
+  details.open=true;
+  const to=expanded?details.getBoundingClientRect().height:summary.getBoundingClientRect().height
+   +parseFloat(getComputedStyle(details).paddingTop)+parseFloat(getComputedStyle(details).paddingBottom)
+   +parseFloat(getComputedStyle(details).borderBottomWidth);
+  animation=details.animate([{height:from+'px'},{height:to+'px'}],{duration:320,easing:'cubic-bezier(.22,1,.36,1)'});
+  details.style.overflow='hidden';
+  const current=animation;
+  animation.finished.then(()=>{
+   if(animation!==current)return;details.open=expanded;details.style.removeProperty('overflow');animation=null;
+  }).catch(()=>{});
+ });
+ contentMotion.addEventListener('change',event=>{
+  if(!event.matches){expanded=details.open;return;}if(animation)animation.cancel();animation=null;details.open=expanded;details.style.removeProperty('overflow');
+ });
+});
+
+// Dates, not unpublished start/cutoff times: update on UTC+8 calendar boundaries.
+{
+ const bar=document.querySelector('.timeline-progress');
+ const status=document.querySelector('#timeline-status');
+ const rail=document.querySelector('.timeline-rail');
+ const marker=document.querySelector('.timeline-current');
+ const tooltip=document.querySelector('#timeline-tooltip');
+ const day=86400000;
+ const start=Date.parse(bar.dataset.start+'T00:00:00Z');
+ const deadline=Date.parse(bar.dataset.deadline+'T00:00:00Z');
+ const end=Date.parse(bar.dataset.end+'T00:00:00Z');
+ let lastDate='';
+ function positionTooltip(){
+  const bounds=rail.closest('.timeline-body').getBoundingClientRect();
+  const markerBounds=marker.getBoundingClientRect();
+  const width=tooltip.getBoundingClientRect().width;
+  const centeredLeft=markerBounds.left+markerBounds.width/2-width/2;
+  const left=Math.max(bounds.left,Math.min(centeredLeft,bounds.right-width));
+  tooltip.style.setProperty('--tooltip-shift',(left-centeredLeft)+'px');
+ }
+ function update(){
+  const date=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+  if(date===lastDate)return;lastDate=date;
+  const today=Date.parse(date+'T00:00:00Z');
+  const progress=Math.max(0,Math.min(1,(today-start)/(end-start)));
+  const percent=Math.round(progress*100);
+  let label;
+  if(today<start){const days=Math.round((start-today)/day);label='Starts in '+days+' '+(days===1?'day':'days');}
+  else if(today===start)label='Competition begins today';
+  else if(today<deadline)label='Competition dates';
+  else if(today===deadline)label='Submission deadline today';
+  else if(today<end){const days=Math.round((end-today)/day);label='Demo Day in '+days+' '+(days===1?'day':'days');}
+  else if(today===end)label='Demo Day today';
+  else label='Timeline complete';
+  rail.style.setProperty('--date-progress',String(progress));
+  marker.dataset.edge=progress<=.1?'start':progress>=.9?'end':'middle';
+  tooltip.textContent=today<start?'The competition has not started yet.'
+   :today===start?'The competition begins today.'
+   :today<deadline?'The competition is in progress.'
+   :today===deadline?'Submission deadline is today.'
+   :today<end?'Submissions closed. Demo Day is next.'
+   :today===end?'Today is Demo Day.'
+   :'The competition timeline is complete.';
+  bar.setAttribute('aria-valuenow',String(percent));
+  bar.setAttribute('aria-valuetext',percent+'% · '+label+' · '+date+' (UTC+8)');
+  bar.title='As of '+date+' (UTC+8). Calendar-date progress; exact event times to be announced.';
+  status.textContent=label;positionTooltip();
+ }
+ marker.addEventListener('pointerenter',()=>{positionTooltip();marker.classList.remove('tooltip-dismissed');});
+ marker.addEventListener('focusin',()=>{positionTooltip();marker.classList.remove('tooltip-dismissed');});
+ window.addEventListener('resize',positionTooltip,{passive:true});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')marker.classList.add('tooltip-dismissed');});
+ update();
+ setInterval(()=>{if(!document.hidden)update();},60000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)update();});
+ window.addEventListener('pageshow',update);
 }
