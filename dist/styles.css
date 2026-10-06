@@ -382,3 +382,13 @@ svg.icon{display:inline-block;vertical-align:middle;flex:none}
 
 /* Match the homepage slogan's light-green highlighting for Task body emphasis. */
 .task-goal strong,.task-examples strong,.task-section .research-line strong{font-weight:400;background:var(--accent-soft);color:var(--selection-ink);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+
+/* Uneven typing-cursor pauses add a quiet pulse to the header wordmark. */
+.site-header .brand>span[aria-hidden="true"]{display:inline-block;animation:brand-cursor-flicker 9.7s steps(1,end) infinite}
+@keyframes brand-cursor-flicker{
+ 0%,14%,42%,56%,83%,100%{opacity:1;text-shadow:0 0 7px #286e5c26}
+ 9%,37%,50%,78%,91%{opacity:.12;text-shadow:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .site-header .brand>span[aria-hidden="true"]{animation:none;opacity:1;text-shadow:none}
+}
